@@ -34,7 +34,8 @@ plasmashell --replace &             # reload the panel after a plasmoid change
 - **TDD.** Both suites stay green; write a failing test before changing writer
   or staleness behaviour.
 - **Target Plasma 5.27 / Qt5** — `org.kde.plasma.*` imports and `metadata.json`
-  packaging, not `metadata.desktop` and not Plasma 6 / Qt6.
+  packaging. (A `metadata.desktop` package loads by ID but won't drag onto a
+  panel on this build.)
 - **The plasmoid is copy-installed, not symlinked.** This KDE build's KPackage
   rejects symlinks that escape the package directory. After editing anything
   under `plasmoid/`, re-run `./install.sh` and reload with `plasmashell --replace &`.

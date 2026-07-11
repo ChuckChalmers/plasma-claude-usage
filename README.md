@@ -66,7 +66,7 @@ After editing the Plasmoid, re-run `./install.sh` and reload with
 
 ## Target environment
 
-- **KDE Plasma 5.27** (Qt5) — the Plasmoid targets the Plasma 5 widget API
-  (`metadata.json` packaging, `org.kde.plasma.*` QML imports), not Plasma 6.
+- **KDE Plasma 5.27** (Qt5) — the Plasmoid uses the Plasma 5 widget API
+  (`metadata.json` packaging, `org.kde.plasma.*` QML imports).
 - **Claude Code ≥ 1.2.80** — the first version to expose `rate_limits` in the
   status line JSON (populated on `2.1.207`).
