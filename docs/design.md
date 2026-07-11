@@ -1,8 +1,5 @@
 # Design — Claude Code Usage Widget (KDE Plasma / Kubuntu)
 
-> Adapted from an initial plan drafted by Claude Desktop, corrected against the
-> actual target machine. Treated as a guideline, not a spec.
-
 ## Goal
 
 A small, always-visible KDE Plasma **panel** widget (a Plasmoid), placed next to
@@ -24,7 +21,7 @@ the system clock, showing two lines:
 - Lives permanently in the panel (not the desktop), so it stays visible above
   open windows without needing "Show Desktop"
 
-## Data source — confirmed viable
+## Data source
 
 Claude Code's **status line** feature invokes a user-configured shell command
 after each turn, passing a JSON payload on stdin. That payload includes a
@@ -40,13 +37,10 @@ session/transcript files required:
 
 `resets_at` is a Unix epoch (seconds). A full captured payload is checked in at
 [`statusline-payload.example.json`](statusline-payload.example.json) as a test
-fixture.
+fixture. `rate_limits` is present in Claude Code `v1.2.80`+ (populated with both
+windows on `2.1.207`).
 
-**Viability check (done):** on the target machine, Claude Code `2.1.207`
-returns `rate_limits` populated with both windows. The project is not blocked on
-an empty/absent field. `rate_limits` first appeared in `v1.2.80`.
-
-Registered via `~/.claude/settings.json`:
+The writer is registered via `~/.claude/settings.json`:
 
 ```json
 {
@@ -57,11 +51,9 @@ Registered via `~/.claude/settings.json`:
 }
 ```
 
-**Correction to the original plan:** there is *no* existing `statusLine` script
-to extend on this machine — `settings.json` has no `statusLine` block today. The
-writer is built from scratch. Because registering it also defines what the
-in-terminal status line displays, the writer prints a useful status line *and*
-writes the cache as a side effect.
+Registering a `statusLine` command also defines what Claude Code shows in the
+terminal, so the writer serves double duty: it prints the terminal status line
+*and* writes the cache as a side effect.
 
 The terminal status line is a local terminal-chrome element: Claude Code runs
 the command each turn and displays its stdout below the input box. Its output is
@@ -103,8 +95,7 @@ it each time:
 ```
 
 `resets_at` (Unix epoch seconds) is required — the reader needs it for the
-staleness rule below. `updated_at` records when the cache was last written, so
-either surface can show a "last updated" age.
+staleness rule below. `updated_at` records when the cache was last written.
 
 **Defensive write:** if the payload has no `rate_limits` object (older CLI, or a
 window not yet populated), the writer does **not** overwrite the cache. It
@@ -170,16 +161,14 @@ value-below-reset, exactly-at-reset boundary) is verifiable with a faked `now`.
 
 ## Widget placement and styling
 
-- **Panel widget** (target): sits in the panel row with the clock, stays visible
-  above all windows at all times.
-- **Desktop widget** (rejected): gets covered by open windows.
+- It is a **panel widget**: it sits in the panel row with the clock and stays
+  visible above all windows. (A desktop widget would be covered by open windows.)
 - Plasma widgets are QML, supporting full custom rendering:
   - True filled progress bars (rounded pill track + growing fill rect)
   - Solid Claude-orange fill, red at 100% (see Goal); no gradient
   - Smooth transitions on value change
-  - Optionally a countdown to `resets_at`
-- No official "Claude Code usage" Plasmoid exists — this is custom, consisting of
-  a QML front-end rendering two bars plus a timer-driven file read.
+- No official "Claude Code usage" Plasmoid exists — this is custom: a QML
+  front-end rendering two bars plus a timer-driven file read.
 
 **Target the Plasma 5.27 (Qt5) widget API** — `org.kde.plasma.*` QML imports,
 not Plasma 6 (Qt6). The machine runs `plasmashell 5.27.12`.
@@ -194,13 +183,13 @@ a symlink: this build's KPackage rejects symlinks that escape the package
 directory ("path traversal"), so the plasmoid must be copied and re-installed
 after edits. (The statusLine writer, read directly by bash, is still symlinked.)
 
-## Honest scope note
+## Update cadence
 
-"Always-visible live widget" means *live while a session is active and
-completing turns; between sessions it shows the last measured values, except
-that a window drops to 0% once its `resets_at` passes* (see the staleness rule).
-The cache's measured numbers only update when Claude Code runs. This is inherent
-to the data source, not a defect.
+The cache's measured numbers update only while a Claude Code session is active
+and completing turns. Between sessions the widget shows the last measured values,
+except that a window drops to 0% once its `resets_at` passes (see the staleness
+rule). This follows from the data source: the payload reaches the writer only
+while Claude Code runs.
 
 ## Build pieces
 
@@ -220,15 +209,3 @@ to the data source, not a defect.
   faked `now`: 0%-at-reset, value-below-reset, exactly-at-reset boundary.
 - **Widget rendering** — verified manually. Qt5 QML unit testing is not worth the
   harness for two bars; the testable logic is isolated in the helper above.
-
-## Build order / next steps
-
-The writer is built and proven end-to-end before any Plasmoid work.
-
-1. **Writer** (`~/.claude/statusline-command.sh`) — parse stdin, print the
-   terminal line, atomically write the cache; register it in `settings.json` and
-   verify `~/.claude/usage_cache.json` updates on a real turn.
-2. **Staleness helper** — the isolated `displayedPercent` JS function, tested.
-3. **Plasmoid** — `metadata.json`, `contents/ui/main.qml`, installed via
-   `kpackagetool5` under `~/.local/share/plasma/plasmoids/`; timer-driven cache
-   poll rendering the two pill bars, applying the staleness helper.

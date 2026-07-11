@@ -6,11 +6,6 @@ system clock.
 
 ![Claude Usage widget](docs/widget.png)
 
-## Status
-
-**Built and running.** The status-line writer and the Plasmoid are complete,
-tested, and installed on the target machine.
-
 ## How it works
 
 Claude Code's status line feature invokes a shell command after each turn,
