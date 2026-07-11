@@ -4,15 +4,12 @@ A KDE Plasma panel widget (Plasmoid) that shows Claude Code rate-limit usage —
 the 5-hour and 7-day windows — as two always-visible progress bars next to the
 system clock.
 
-```
-5h ▓▓▓▓▓▓░░░░ 62%
-7d ▓▓▓░░░░░░░ 31%
-```
+![Claude Usage widget](docs/widget.png)
 
 ## Status
 
-**Planning.** Design is settled and viability is confirmed on the target
-machine (see below); the writer script and the Plasmoid are not yet built.
+**Built and running.** The status-line writer and the Plasmoid are complete,
+tested, and installed on the target machine.
 
 ## How it works
 
@@ -23,16 +20,54 @@ session is active, so a panel widget can't query it on demand.
 
 The bridge is a single cache file:
 
-1. **Writer** — a `statusLine` command registered in `~/.claude/settings.json`
-   extracts `rate_limits` from stdin and atomically writes the two percentages
-   (plus reset timestamps) to a small cache file.
-2. **Reader** — the Plasmoid polls that cache file on its own timer and renders
-   two styled progress bars, independent of whether a session is active.
+1. **Writer** (`statusline/statusline-command.sh`) — a `statusLine` command
+   registered in `~/.claude/settings.json`. It prints the terminal status line
+   and atomically writes the two percentages (plus reset timestamps) to
+   `~/.claude/usage_cache.json`.
+2. **Reader** (`plasmoid/`) — the Plasmoid polls that cache file every 2s and
+   renders two styled progress bars, independent of whether a session is active.
 
-Between sessions the bars show the last known values (the cache only updates
-while Claude Code is running and completing turns).
+### Behavior
+
+- Bars fill in Claude orange (`#D97757`); a window turns red only when it reaches
+  100%.
+- Between sessions the bars show the last measured values — except a window drops
+  to **0%** once its reset time (`resets_at`) passes, since that window has reset
+  even without a fresh payload.
+- The terminal status line reads e.g. `Opus 4.8 · ctx 5% · 5h 62% · 7d 31%`
+  (same orange/red rule). It costs no tokens and is invisible to the model.
 
 See [`docs/design.md`](docs/design.md) for the full design.
+
+## Install
+
+```
+./install.sh
+```
+
+This symlinks the writer into `~/.claude/` and installs the Plasmoid as a copied
+package (this KDE build rejects symlinked packages). Then:
+
+1. Register the status line in `~/.claude/settings.json`:
+
+   ```json
+   "statusLine": {
+     "type": "command",
+     "command": "/bin/bash ~/.claude/statusline-command.sh"
+   }
+   ```
+
+2. Add the widget to the panel: right-click the panel → **Add Widgets…** →
+   search **Claude Usage** → drag it next to the clock.
+
+After editing the Plasmoid, re-run `./install.sh` and reload with
+`plasmashell --replace &` — the installed copy does not track the repo.
+
+## Tests
+
+- `bash statusline/test_writer.sh` — the writer (cache write, terminal line,
+  coloring, defensive no-clobber, integer rounding).
+- `node plasmoid/test_staleness.js` — the staleness helper.
 
 ## Target environment
 
