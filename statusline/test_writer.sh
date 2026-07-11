@@ -71,17 +71,18 @@ line="$(NO_COLOR=1 USAGE_CACHE_FILE="$tmp_cache" bash "$WRITER" <"$FIXTURE" 2>/d
 check "line: plain format" "Opus 4.8 (1M context) · ctx 5% · 5h 1% · 7d 4%" "$line"
 rm -f "$tmp_cache"
 
-# --- colors the percentages: orange below 100%, red at >=100% ----------------
+# --- coloring: whole line orange; a maxed window's label+percent go red ------
 tmp_cache="$(mktemp)"
 color_line="$(USAGE_CACHE_FILE="$tmp_cache" bash "$WRITER" <"$FIXTURE" 2>/dev/null)"
-check_contains "color: orange present at 1%/4%" "$ORANGE" "$color_line"
+check_contains "color: text is orange, not just percents" "${ORANGE}Opus 4.8 (1M context)" "$color_line"
 check_absent "color: no red below 100%" "$RED" "$color_line"
 rm -f "$tmp_cache"
 
 tmp_cache="$(mktemp)"
 maxed="$(jq '.rate_limits.five_hour.used_percentage = 100' "$FIXTURE")"
 color_line="$(USAGE_CACHE_FILE="$tmp_cache" bash "$WRITER" <<<"$maxed" 2>/dev/null)"
-check_contains "color: red present at 100%" "$RED" "$color_line"
+check_contains "color: maxed window label+percent go red" "${RED}5h 100%" "$color_line"
+check_absent "color: non-maxed window stays out of red" "${RED}7d" "$color_line"
 rm -f "$tmp_cache"
 
 # --- defensive: no rate_limits -> preserve cache, drop usage from line -------

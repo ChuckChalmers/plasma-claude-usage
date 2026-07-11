@@ -73,10 +73,11 @@ is the only way to receive the payload). Its content:
 Opus 4.8 · ctx 5% · 5h 62% · 7d 31%
 ```
 
-model display name · context-window usage · 5-hour usage · 7-day usage. The two
-rate-limit percentages are colored with the same rule as the widget (ANSI
-24-bit: orange `#D97757` below 100%, red at 100%). If `rate_limits` is absent the
-line omits the two usage figures.
+model display name · context-window usage · 5-hour usage · 7-day usage. The whole
+line renders in Claude orange `#D97757`; when a rate-limit window is maxed
+(`used_percentage >= 100`) that window's label and percent turn red, and the rest
+of the line stays orange (ANSI 24-bit; suppressed when `NO_COLOR` is set). If
+`rate_limits` is absent the line omits the two usage figures.
 
 ## Architecture (two-part pipeline)
 

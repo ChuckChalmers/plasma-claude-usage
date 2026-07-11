@@ -13,17 +13,26 @@ ORANGE=$'\033[38;2;217;119;87m' # Claude orange #D97757
 RED=$'\033[38;2;224;49;49m'     # maxed-out indicator
 RESET=$'\033[0m'
 
-# Render a percentage for the terminal line: orange below 100%, red at >=100%.
-# NO_COLOR (any non-empty value) yields plain text.
-color_pct() {
-  local pct="$1"
-  if [ -n "${NO_COLOR:-}" ]; then
-    printf '%s%%' "$pct"
-    return
+# Render a "5h 62%" window segment. The line is orange overall (see emit_line);
+# a maxed window (>=100%) turns its label+percent red, then returns to orange so
+# the rest of the line stays orange.
+window_seg() {
+  local label="$1" pct="$2"
+  if [ -z "${NO_COLOR:-}" ] && [ "$pct" -ge 100 ]; then
+    printf '%s%s %s%%%s' "$RED" "$label" "$pct" "$ORANGE"
+  else
+    printf '%s %s%%' "$label" "$pct"
   fi
-  local c="$ORANGE"
-  if [ "$pct" -ge 100 ]; then c="$RED"; fi
-  printf '%s%s%%%s' "$c" "$pct" "$RESET"
+}
+
+# Print a status line. NO_COLOR yields plain text; otherwise the whole line is
+# wrapped in orange (embedded red segments already restore orange after).
+emit_line() {
+  if [ -n "${NO_COLOR:-}" ]; then
+    printf '%s\n' "$1"
+  else
+    printf '%s%s%s\n' "$ORANGE" "$1" "$RESET"
+  fi
 }
 
 payload="$(cat)"
@@ -41,7 +50,7 @@ has_rl="$(jq -r \
   <<<"$payload")"
 
 if [ "$has_rl" != "true" ]; then
-  printf '%s · ctx %s%%\n' "$model" "$ctx"
+  emit_line "$model · ctx $ctx%"
   exit 0
 fi
 
@@ -65,5 +74,4 @@ mv "$tmp" "$CACHE_FILE"
 fh="$(jq -r '.rate_limits.five_hour.used_percentage' <<<"$payload")"
 sd="$(jq -r '.rate_limits.seven_day.used_percentage' <<<"$payload")"
 
-printf '%s · ctx %s%% · 5h %s · 7d %s\n' \
-  "$model" "$ctx" "$(color_pct "$fh")" "$(color_pct "$sd")"
+emit_line "$model · ctx $ctx% · $(window_seg 5h "$fh") · $(window_seg 7d "$sd")"
