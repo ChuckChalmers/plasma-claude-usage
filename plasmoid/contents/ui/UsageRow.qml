@@ -25,6 +25,7 @@ RowLayout {
     // Pill track
     Rectangle {
         Layout.fillWidth: true
+        Layout.minimumWidth: 50
         Layout.preferredHeight: 6
         radius: height / 2
         color: row.track

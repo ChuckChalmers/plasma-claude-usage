@@ -57,12 +57,20 @@ Item {
     }
 
     Plasmoid.fullRepresentation: Item {
-        implicitWidth: 150
+        // Force a real width in the panel; otherwise the layout shrinks to the
+        // text and the fill-width bars collapse to zero and disappear.
+        implicitWidth: 168
         implicitHeight: 40
+        Layout.minimumWidth: 168
+        Layout.preferredWidth: 168
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 2
+            // Padding so the bars aren't flush against the neighbouring tray icon.
+            anchors.leftMargin: 6
+            anchors.rightMargin: 12
+            anchors.topMargin: 4
+            anchors.bottomMargin: 4
             spacing: 4
 
             UsageRow { Layout.fillWidth: true; label: "5h"; pct: root.fivePct }
