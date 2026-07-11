@@ -1,0 +1,22 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Chuck Chalmers"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Claude Code 5-hour and 7-day rate-limit usage as progress bars",
+        "EnabledByDefault": true,
+        "Icon": "utilities-system-monitor",
+        "Id": "org.chuckchalmers.claudeusage",
+        "License": "MIT",
+        "Name": "Claude Usage",
+        "ServiceTypes": [
+            "Plasma/Applet"
+        ],
+        "Version": "0.1"
+    },
+    "X-Plasma-API": "declarativeappletscript",
+    "X-Plasma-MainScript": "ui/main.qml"
+}

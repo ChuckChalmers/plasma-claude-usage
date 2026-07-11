@@ -181,9 +181,18 @@ value-below-reset, exactly-at-reset boundary) is verifiable with a faked `now`.
 - No official "Claude Code usage" Plasmoid exists — this is custom, consisting of
   a QML front-end rendering two bars plus a timer-driven file read.
 
-**Target the Plasma 5.27 (Qt5) widget API** — `metadata.desktop` packaging and
-`org.kde.plasma.*` imports — not Plasma 6 (`metadata.json`, Qt6). The machine
-runs `plasmashell 5.27.12`.
+**Target the Plasma 5.27 (Qt5) widget API** — `org.kde.plasma.*` QML imports,
+not Plasma 6 (Qt6). The machine runs `plasmashell 5.27.12`.
+
+Packaging uses **`metadata.json`** (the `KPlugin` manifest), not the older
+`metadata.desktop`. On this KDE build a `.desktop`-only package lists and loads
+by ID but the widget explorer cannot instantiate it on drag-and-drop; only a
+`metadata.json` package drops onto a panel.
+
+Install as a **real copy** via `kpackagetool5 --install` (see `install.sh`), not
+a symlink: this build's KPackage rejects symlinks that escape the package
+directory ("path traversal"), so the plasmoid must be copied and re-installed
+after edits. (The statusLine writer, read directly by bash, is still symlinked.)
 
 ## Honest scope note
 
@@ -220,6 +229,6 @@ The writer is built and proven end-to-end before any Plasmoid work.
    terminal line, atomically write the cache; register it in `settings.json` and
    verify `~/.claude/usage_cache.json` updates on a real turn.
 2. **Staleness helper** — the isolated `displayedPercent` JS function, tested.
-3. **Plasmoid** — `metadata.desktop`, `contents/ui/main.qml`, install under
-   `~/.local/share/plasma/plasmoids/`; timer-driven cache poll rendering the two
-   pill bars, applying the staleness helper.
+3. **Plasmoid** — `metadata.json`, `contents/ui/main.qml`, installed via
+   `kpackagetool5` under `~/.local/share/plasma/plasmoids/`; timer-driven cache
+   poll rendering the two pill bars, applying the staleness helper.
