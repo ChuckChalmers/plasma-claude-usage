@@ -65,13 +65,14 @@ Item {
         Layout.preferredWidth: 168
 
         ColumnLayout {
-            anchors.fill: parent
-            // Padding so the bars aren't flush against the neighbouring tray icon.
+            // Anchor sides for width/padding, but center vertically so the two
+            // rows get balanced top/bottom breathing room in the panel.
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 6
             anchors.rightMargin: 12
-            anchors.topMargin: 4
-            anchors.bottomMargin: 4
-            spacing: 4
+            spacing: 5
 
             UsageRow { Layout.fillWidth: true; label: "5h"; pct: root.fivePct }
             UsageRow { Layout.fillWidth: true; label: "7d"; pct: root.sevenPct }

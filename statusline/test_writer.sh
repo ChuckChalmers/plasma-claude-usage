@@ -95,5 +95,13 @@ check "defensive: cache updated_at preserved" "999" "$(jq -r '.updated_at' "$tmp
 check "defensive: line omits usage figures" "Opus 4.8 (1M context) · ctx 5%" "$line"
 rm -f "$tmp_cache"
 
+# --- rounds fractional percentages (float noise) to integers -----------------
+tmp_cache="$(mktemp)"
+frac="$(jq '.rate_limits.seven_day.used_percentage = 7.000000000000001' "$FIXTURE")"
+line="$(NO_COLOR=1 USAGE_CACHE_FILE="$tmp_cache" bash "$WRITER" <<<"$frac" 2>/dev/null)"
+check "round: line shows integer percent" "Opus 4.8 (1M context) · ctx 5% · 5h 1% · 7d 7%" "$line"
+check "round: cache stores integer percent" "7" "$(jq -r '.seven_day.used_percentage' "$tmp_cache" 2>/dev/null)"
+rm -f "$tmp_cache"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

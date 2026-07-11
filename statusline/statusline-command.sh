@@ -40,7 +40,7 @@ now="$(date +%s)"
 
 # Always available, needed by both branches below.
 model="$(jq -r '.model.display_name' <<<"$payload")"
-ctx="$(jq -r '.context_window.used_percentage' <<<"$payload")"
+ctx="$(jq -r '.context_window.used_percentage | round' <<<"$payload")"
 
 # When the payload carries no usable rate-limit data (older CLI, or a window not
 # yet populated), leave the cache untouched — preserve last-good values rather
@@ -56,11 +56,11 @@ fi
 
 cache="$(jq -c --argjson now "$now" '{
   five_hour: {
-    used_percentage: .rate_limits.five_hour.used_percentage,
+    used_percentage: (.rate_limits.five_hour.used_percentage | round),
     resets_at:       .rate_limits.five_hour.resets_at
   },
   seven_day: {
-    used_percentage: .rate_limits.seven_day.used_percentage,
+    used_percentage: (.rate_limits.seven_day.used_percentage | round),
     resets_at:       .rate_limits.seven_day.resets_at
   },
   updated_at: $now
@@ -71,7 +71,7 @@ printf '%s' "$cache" >"$tmp"
 mv "$tmp" "$CACHE_FILE"
 
 # Terminal status line: model · context% · 5h% · 7d%
-fh="$(jq -r '.rate_limits.five_hour.used_percentage' <<<"$payload")"
-sd="$(jq -r '.rate_limits.seven_day.used_percentage' <<<"$payload")"
+fh="$(jq -r '.rate_limits.five_hour.used_percentage | round' <<<"$payload")"
+sd="$(jq -r '.rate_limits.seven_day.used_percentage | round' <<<"$payload")"
 
 emit_line "$model · ctx $ctx% · $(window_seg 5h "$fh") · $(window_seg 7d "$sd")"
