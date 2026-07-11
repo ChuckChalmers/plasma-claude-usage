@@ -15,8 +15,12 @@ the system clock, showing two lines:
 
 - Top line: current 5-hour rate limit usage
 - Bottom line: current 7-day (weekly) rate limit usage
-- Styled as a filled progress bar (rendered, not block characters), colored to
-  indicate usage level (green → yellow → orange → red as it climbs)
+- Styled as a filled progress bar (rendered, not block characters): a thin,
+  pill-shaped rounded track with a solid fill, modeled on the Claude Desktop
+  usage bars. Fill length carries the "how full" signal; color does not.
+- Fill color is **Claude orange `#D97757`** from 0–99%, switching to **red only
+  when a window is maxed out (`used_percentage >= 100`)**. The percentage value
+  is always shown, so color is a binary maxed indicator, not a usage gradient.
 - Lives permanently in the panel (not the desktop), so it stays visible above
   open windows without needing "Show Desktop"
 
@@ -56,9 +60,23 @@ Registered via `~/.claude/settings.json`:
 **Correction to the original plan:** there is *no* existing `statusLine` script
 to extend on this machine — `settings.json` has no `statusLine` block today. The
 writer is built from scratch. Because registering it also defines what the
-in-terminal status line displays, the writer should print a useful status line
-*and* write the cache as a side effect (design the human-facing line as its own
-task).
+in-terminal status line displays, the writer prints a useful status line *and*
+writes the cache as a side effect.
+
+The terminal status line is a local terminal-chrome element: Claude Code runs
+the command each turn and displays its stdout below the input box. Its output is
+**never** added to the conversation — it costs no context tokens and is invisible
+to the model. It is therefore a free surface, and the script runs regardless (it
+is the only way to receive the payload). Its content:
+
+```
+Opus 4.8 · ctx 5% · 5h 62% · 7d 31%
+```
+
+model display name · context-window usage · 5-hour usage · 7-day usage. The two
+rate-limit percentages are colored with the same rule as the widget (ANSI
+24-bit: orange `#D97757` below 100%, red at 100%). If `rate_limits` is absent the
+line omits the two usage figures.
 
 ## Architecture (two-part pipeline)
 
@@ -69,11 +87,28 @@ on its own schedule. One small cache file is the hand-off point.
 ### 1. Writer — the statusLine script
 
 Does its normal job (rendering the terminal status line) and additionally writes
-the two percentages (and reset timestamps) to a flat cache file, overwriting it
-each time:
+the two percentages plus their reset timestamps to a flat cache file, overwriting
+it each time:
 
 - File: `~/.claude/usage_cache.json`
-- Content: the two percentages plus reset timestamps
+- Schema:
+
+```json
+{
+  "five_hour": { "used_percentage": 62, "resets_at": 1783823400 },
+  "seven_day": { "used_percentage": 31, "resets_at": 1784383200 },
+  "updated_at": 1783820000
+}
+```
+
+`resets_at` (Unix epoch seconds) is required — the reader needs it for the
+staleness rule below. `updated_at` records when the cache was last written, so
+either surface can show a "last updated" age.
+
+**Defensive write:** if the payload has no `rate_limits` object (older CLI, or a
+window not yet populated), the writer does **not** overwrite the cache. It
+preserves the last-good values rather than clobbering them with nulls, and the
+terminal line simply omits the usage figures for that turn.
 
 Atomic write so concurrent sessions can't corrupt the file:
 
@@ -95,9 +130,35 @@ handled above.
 ### 2. Reader — the Plasma widget
 
 The widget polls `~/.claude/usage_cache.json` on its own timer (a QML `Timer`),
-independent of whether a session is active. Between sessions it displays the
-last known values. On a read/parse failure (e.g. rare mid-write timing) it keeps
-showing the last good value rather than blanking or erroring.
+independent of whether a session is active. On a read/parse failure (e.g. rare
+mid-write timing) it keeps showing the last good value rather than blanking or
+erroring.
+
+#### Staleness rule
+
+The cache only updates while Claude Code is running, so between sessions the
+stored percentage grows stale. But the cache also carries `resets_at` per window,
+which tells the reader when the stored number stops being true. On every poll
+tick the widget applies, per window:
+
+```
+displayedPercent(window, now) = (now >= window.resets_at) ? 0 : window.used_percentage
+```
+
+Once a window's `resets_at` has passed, its usage has reset, so the bar drops to
+0% — even with no fresh payload. This is an *inference* (a session running in a
+terminal we haven't polled a payload from could already be consuming the new
+window), but 0% is the correct best estimate for the common between-sessions
+case, and the next payload corrects it.
+
+This logic lives **entirely in the reader** and is **display-only** — the widget
+never writes back to the cache. The writer remains the single owner of the file,
+which stays honest about what was last *measured*; the widget is honest about
+what is *currently true*. The writer's own terminal line never needs this rule,
+because it always has a fresh payload.
+
+The rule is implemented as an isolated pure JS helper so its logic (0%-at-reset,
+value-below-reset, exactly-at-reset boundary) is verifiable with a faked `now`.
 
 ## Polling frequency
 
@@ -112,9 +173,8 @@ showing the last good value rather than blanking or erroring.
   above all windows at all times.
 - **Desktop widget** (rejected): gets covered by open windows.
 - Plasma widgets are QML, supporting full custom rendering:
-  - True filled/animated progress bars (rounded-rect track + growing fill rect)
-  - Custom colors/gradients keyed to usage level
-  - Conditional styling (color change or pulse near a limit)
+  - True filled progress bars (rounded pill track + growing fill rect)
+  - Solid Claude-orange fill, red at 100% (see Goal); no gradient
   - Smooth transitions on value change
   - Optionally a countdown to `resets_at`
 - No official "Claude Code usage" Plasmoid exists — this is custom, consisting of
@@ -127,8 +187,10 @@ runs `plasmashell 5.27.12`.
 ## Honest scope note
 
 "Always-visible live widget" means *live while a session is active and
-completing turns, frozen at last-known between sessions*. The cache only updates
-when Claude Code runs. This is inherent to the data source, not a defect.
+completing turns; between sessions it shows the last measured values, except
+that a window drops to 0% once its `resets_at` passes* (see the staleness rule).
+The cache's measured numbers only update when Claude Code runs. This is inherent
+to the data source, not a defect.
 
 ## Build pieces
 
@@ -139,11 +201,24 @@ when Claude Code runs. This is inherent to the data source, not a defect.
 | `~/.claude/usage_cache.json` | Single source of truth the widget reads; always overwritten, never appended |
 | Plasmoid (QML) | Panel widget: timer-based poll of cache file, renders two styled progress bars |
 
-## Open questions / next steps
+## Testing
 
-1. Design the human-facing terminal status line (the writer double-duties as it).
-2. Decide the cache schema (percentages only vs. include `resets_at` for a
-   countdown).
-3. Color thresholds and near-limit behavior (static color vs. pulse).
-4. Plasmoid scaffolding: `metadata.desktop`, `contents/ui/main.qml`, install path
-   under `~/.local/share/plasma/plasmoids/`.
+- **Writer** — feed `statusline-payload.example.json` on stdin and assert both
+  the cache output and the terminal-line format. Cover the missing-`rate_limits`
+  case (asserts the cache is left untouched).
+- **Staleness helper** — unit-test the pure `displayedPercent` function with a
+  faked `now`: 0%-at-reset, value-below-reset, exactly-at-reset boundary.
+- **Widget rendering** — verified manually. Qt5 QML unit testing is not worth the
+  harness for two bars; the testable logic is isolated in the helper above.
+
+## Build order / next steps
+
+The writer is built and proven end-to-end before any Plasmoid work.
+
+1. **Writer** (`~/.claude/statusline-command.sh`) — parse stdin, print the
+   terminal line, atomically write the cache; register it in `settings.json` and
+   verify `~/.claude/usage_cache.json` updates on a real turn.
+2. **Staleness helper** — the isolated `displayedPercent` JS function, tested.
+3. **Plasmoid** — `metadata.desktop`, `contents/ui/main.qml`, install under
+   `~/.local/share/plasma/plasmoids/`; timer-driven cache poll rendering the two
+   pill bars, applying the staleness helper.
