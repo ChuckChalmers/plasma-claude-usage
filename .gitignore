@@ -1,0 +1,10 @@
+# Personal/exploratory artifacts (globally gitignored, but explicit here too)
+.local/
+
+# Editor/OS cruft
+*.swp
+*~
+.DS_Store
+
+# Plasmoid build/packaging artifacts
+*.plasmoid
