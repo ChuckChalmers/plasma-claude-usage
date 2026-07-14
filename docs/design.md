@@ -71,11 +71,14 @@ line renders in Claude orange `#D97757`; when a rate-limit window is maxed
 of the line stays orange (ANSI 24-bit; suppressed when `NO_COLOR` is set). If
 `rate_limits` is absent the line omits the two usage figures.
 
-## Architecture (two-part pipeline)
+## Architecture
 
 The JSON is only pushed to the status line script transiently (while a session
 is active and a turn completes), so the widget can't query Claude Code directly
-on its own schedule. One small cache file is the hand-off point.
+on its own schedule. One small cache file is the hand-off point, fed by two
+independent writers — the statusLine writer (terminal) and the OAuth poller (any
+surface) — and read by the widget. Both write the same account-level truth
+atomically, so they never conflict.
 
 ### 1. Writer — the statusLine script
 
@@ -117,7 +120,51 @@ the temp name avoids collisions across concurrent sessions.
 **Concurrency note:** the 5h/7d percentages are account-level, not per-session,
 so simultaneous sessions all report against the same underlying quota — there's
 no "which session's number is correct" conflict, only the file-write race
-handled above.
+handled above. The same holds for the poller below: it reports the same
+account-level numbers, so it and the writer never disagree — the file is simply
+whichever of them wrote last.
+
+### 1b. Poller — the OAuth usage timer
+
+`statusLine` runs only in a terminal. When Claude Code is driven through the VS
+Code extension (or no session is running), the writer never fires and the cache
+would freeze (see [Surface coverage](#surface-coverage) under Update cadence).
+The poller (`poller/usage-poll.sh`, driven by a systemd user timer every ~3 min)
+closes that gap by fetching the same numbers directly:
+
+```
+GET https://api.anthropic.com/api/oauth/usage
+Authorization: Bearer <oauth token from ~/.claude/.credentials.json>
+anthropic-beta: oauth-2025-04-20
+```
+
+This is the endpoint Claude Code itself falls back to when the statusLine payload
+lacks `rate_limits`. It returns the server-computed 5h/7d utilization keyed as
+`utilization` (float) and `resets_at` (ISO-8601), which the poller normalises to
+the cache schema above (round to int; ISO→epoch seconds) and writes with the same
+atomic `mv`. It authenticates with the **subscription** OAuth token — not an API
+key — and is a read-only usage query, so it consumes no tokens and incurs no API
+spend.
+
+**Failure classification.** The endpoint is undocumented beta and may change. The
+poller sorts failures into two buckets and, like the writer, never clobbers
+good data:
+
+- *Transient* (offline, timeout, HTTP 401 token expiry, HTTP 5xx) → stay silent,
+  leave the last-good cache in place. These are expected and self-heal (Claude
+  Code refreshes the token; the network comes back).
+- *Real breakage* (HTTP 200 whose shape is no longer recognised, or a persistent
+  non-401/5xx error like 404/410) → after a few consecutive occurrences, fire a
+  **debounced desktop notification** (once per outage, re-armed on the next
+  success) so silent drift becomes visible. A small state file
+  (`~/.claude/usage_poll_state.json`) holds the consecutive-failure count and the
+  "already notified" flag.
+
+**Credentials are read-only to the poller.** It only reads the access token; it
+never writes `~/.claude/.credentials.json` (Claude Code owns that and refreshes
+the token). If the token is expired and no session is refreshing it, the poll
+degrades transiently until the next refresh — correctness is preserved by the
+reader's staleness rule.
 
 ### 2. Reader — the Plasma widget
 
@@ -185,11 +232,29 @@ after edits. (The statusLine writer, read directly by bash, is still symlinked.)
 
 ## Update cadence
 
-The cache's measured numbers update only while a Claude Code session is active
-and completing turns. Between sessions the widget shows the last measured values,
-except that a window drops to 0% once its `resets_at` passes (see the staleness
-rule). This follows from the data source: the payload reaches the writer only
-while Claude Code runs.
+The **writer** refreshes the cache every turn, but only in a terminal. The
+**poller** refreshes it every ~3 minutes regardless of surface. So during active
+use the numbers are effectively live (instant in a terminal, within a few minutes
+elsewhere), and between sessions the poller keeps them current until its token
+expires — after which the widget falls back to the last measured values, with a
+window dropping to 0% once its `resets_at` passes (the staleness rule).
+
+### Surface coverage
+
+`statusLine` is a **terminal-chrome** feature: it is invoked only by the `claude`
+CLI in a terminal, not by the VS Code extension's sidebar UI. And `rate_limits`
+rides *exclusively* on the `statusLine` payload — no hook event carries it, and
+Claude Code persists no rate-limit state to disk. So the writer alone would leave
+the cache frozen during VS Code-only work.
+
+The **poller** (see [1b](#1b-poller--the-oauth-usage-timer)) covers that gap by
+reading the same account-level numbers straight from the OAuth usage endpoint,
+independent of any session or surface. The two writers are complementary: the
+writer is the official, credential-free path that works whenever a terminal is
+active; the poller is the surface-independent path that also covers the VS Code
+extension and idle stretches. If the (undocumented) endpoint ever breaks, the
+poller degrades quietly and notifies, and terminal sessions still refresh the
+cache — so coverage never drops below the terminal-only baseline.
 
 ## Build pieces
 
@@ -197,7 +262,9 @@ while Claude Code runs.
 |---|---|
 | `~/.claude/settings.json` | Registers the `statusLine` command with Claude Code |
 | statusline writer script | Reads stdin JSON, prints the terminal status line, atomically writes the cache file |
+| poller script + systemd timer | GETs the OAuth usage endpoint every ~3 min, atomically writes the same cache file (surface-independent refresh) |
 | `~/.claude/usage_cache.json` | Single source of truth the widget reads; always overwritten, never appended |
+| `~/.claude/usage_poll_state.json` | Poller's debounce state (consecutive failures + notified flag); not read by the widget |
 | Plasmoid (QML) | Panel widget: timer-based poll of cache file, renders two styled progress bars |
 
 ## Testing
@@ -205,6 +272,11 @@ while Claude Code runs.
 - **Writer** — feed `statusline-payload.example.json` on stdin and assert both
   the cache output and the terminal-line format. Cover the missing-`rate_limits`
   case (asserts the cache is left untouched).
+- **Poller** — feed `usage-endpoint.example.json` through the script's injectable
+  seams (no network/credentials) and assert: the cache is written in the widget's
+  schema (`utilization`→int, ISO→epoch), transient statuses (401/5xx) stay silent,
+  real breakage (unrecognised 200 body, 404) leaves the cache untouched and fires
+  a debounced notification, and a success re-arms the alert.
 - **Staleness helper** — unit-test the pure `displayedPercent` function with a
   faked `now`: 0%-at-reset, value-below-reset, exactly-at-reset boundary.
 - **Widget rendering** — verified manually. Qt5 QML unit testing is not worth the

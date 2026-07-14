@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh Claude Code usage cache from the OAuth usage endpoint
+Documentation=https://github.com/ChuckChalmers/plasma-claude-usage
+
+[Service]
+Type=oneshot
+# Reads ~/.claude/.credentials.json, GETs the usage endpoint, writes the cache.
+# Failures are handled inside the script (silent for transient, a debounced
+# desktop notification for real breakage); see usage-poll.sh.
+ExecStart=%h/.claude/usage-poll.sh

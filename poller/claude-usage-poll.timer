@@ -1,0 +1,15 @@
+[Unit]
+Description=Poll Claude Code usage every few minutes
+Documentation=https://github.com/ChuckChalmers/plasma-claude-usage
+
+[Timer]
+# First run shortly after login, then every 3 minutes. Persistent catches up
+# after the machine was asleep/off. To change the cadence (e.g. if the endpoint
+# ever rate-limits), edit OnUnitActiveSec then:
+#   systemctl --user daemon-reload && systemctl --user restart claude-usage-poll.timer
+OnBootSec=1min
+OnUnitActiveSec=3min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
