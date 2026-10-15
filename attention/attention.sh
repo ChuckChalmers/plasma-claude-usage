@@ -81,7 +81,7 @@ hook() {
     Stop)
       mark "$session" turn "$cwd" ;;
     Notification)
-      # The idle reminder repeats "your turn"; older payloads lack the type.
+      # The idle reminder repeats what Stop recorded; older payloads lack the type.
       local type message
       type="$(jq -r '.notification_type // empty' <<<"$payload")"
       message="$(jq -r '.message // empty' <<<"$payload")"

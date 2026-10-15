@@ -107,8 +107,8 @@ hook on several events:
 
 | Event | Effect |
 |---|---|
-| `Stop` | marks the session "your turn" |
-| `Notification` | marks it blocked; the 60-second idle reminder is skipped, since it repeats "your turn" |
+| `Stop` | marks the session done (shown as "Done") |
+| `Notification` | marks it blocked; the 60-second idle reminder is skipped, since it repeats what `Stop` already recorded |
 | `PreToolUse` on `AskUserQuestion\|ExitPlanMode` | marks it blocked |
 | `PostToolUse`, `UserPromptSubmit`, `SessionEnd` | clears it (a subagent's tool calls leave it alone) |
 

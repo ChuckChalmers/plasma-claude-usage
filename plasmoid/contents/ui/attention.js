@@ -12,11 +12,17 @@ function badgeFor(summary) {
 
   var lines = [];
   if (blocked.length) lines.push("Blocked: " + blocked.join(", "));
-  if (turn.length) lines.push("Your turn: " + turn.join(", "));
+  if (turn.length) lines.push("Done: " + turn.join(", "));
+
+  var count = blocked.length + turn.length;
+  var title = count === 0 ? "No sessions waiting on you"
+    : count === 1 ? "1 session waiting on you"
+    : count + " sessions waiting on you";
 
   return {
     level: blocked.length ? "blocked" : turn.length ? "turn" : "none",
-    count: blocked.length + turn.length,
+    count: count,
+    title: title,
     tooltip: lines.join("\n"),
   };
 }

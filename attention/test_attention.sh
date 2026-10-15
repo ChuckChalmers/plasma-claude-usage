@@ -49,7 +49,7 @@ list() { bash "$TRACKER" list | jq -c .; }
 # --- marking ------------------------------------------------------------------
 reset
 hook Stop a
-check "Stop marks the session as your turn" \
+check "Stop marks the session done" \
   '{"blocked":[],"turn":["proj-a"]}' "$(list)"
 
 reset
@@ -76,7 +76,7 @@ check "idle reminder without notification_type is ignored" \
 reset
 hook Notification a '"notification_type": "permission_prompt"'
 hook Stop a
-check "Stop after a prompt moves the session to your turn" \
+check "Stop after a prompt moves the session to done" \
   '{"blocked":[],"turn":["proj-a"]}' "$(list)"
 
 # --- clearing -----------------------------------------------------------------

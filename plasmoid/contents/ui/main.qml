@@ -32,8 +32,6 @@ Item {
     readonly property string attentionCmd: "bash \"$HOME/.claude/attention.sh\" list"
     property var badge: Attention.badgeFor(null)
 
-    Plasmoid.toolTipMainText: badge.count ? "Claude Code: waiting on you" : "Claude Code"
-    Plasmoid.toolTipSubText: badge.tooltip || "No sessions waiting"
 
     // The executable engine runs a command once per connect, so the timer
     // reconnects it each tick and onNewData disconnects it again.
@@ -92,6 +90,15 @@ Item {
         implicitHeight: 40
         Layout.minimumWidth: 188
         Layout.preferredWidth: 188
+
+        // Plasmoid.toolTip* only shows for a compact representation; this
+        // widget is always full, so it needs its own hover area.
+        PlasmaCore.ToolTipArea {
+            anchors.fill: parent
+            mainText: root.badge.title
+            subText: root.badge.tooltip
+            textFormat: Text.PlainText
+        }
 
         // Space stays reserved when hidden so the bars never shift.
         AttentionBadge {
