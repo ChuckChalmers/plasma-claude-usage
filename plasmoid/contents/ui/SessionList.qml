@@ -15,6 +15,13 @@ Item {
 
     implicitWidth: column.implicitWidth + margin * 2
     implicitHeight: column.implicitHeight + margin * 2
+    // The tooltip window follows these, so it resizes as rows come and go.
+    width: implicitWidth
+    height: implicitHeight
+    Layout.minimumWidth: implicitWidth
+    Layout.minimumHeight: implicitHeight
+    Layout.maximumWidth: implicitWidth
+    Layout.maximumHeight: implicitHeight
 
     ColumnLayout {
         id: column

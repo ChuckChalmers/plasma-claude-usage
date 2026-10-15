@@ -31,6 +31,7 @@ Item {
     // Sessions waiting on you, from the attention tracker (see attention/).
     readonly property string attentionCmd: "bash \"$HOME/.claude/attention.sh\" list"
     property var badge: Attention.badgeFor(null)
+    property string lastAttention: ""
 
 
     // The executable engine runs a command once per connect, so the timer
@@ -40,10 +41,12 @@ Item {
         engine: "executable"
         onNewData: {
             disconnectSource(sourceName);
-            if (data["exit code"] !== 0)
+            // Same output as last poll: skip, so an open tooltip isn't rebuilt.
+            if (data["exit code"] !== 0 || data.stdout === root.lastAttention)
                 return;
             try {
                 root.badge = Attention.badgeFor(JSON.parse(data.stdout));
+                root.lastAttention = data.stdout;
             } catch (e) {
                 // Unparseable output: keep the last badge.
             }

@@ -76,7 +76,9 @@ journalctl --user -u claude-usage-poll -n 20       # why did a poll fail?
 - **The tooltip is a `PlasmaCore.ToolTipArea` with `interactive: true`.**
   `Plasmoid.toolTip*` only appears for a compact representation, and this widget
   always shows its full one; `interactive` keeps the tooltip open while the
-  mouse moves into it, so its rows can be clicked.
+  mouse moves into it, so its rows can be clicked. The tooltip window tracks
+  `SessionList`'s `width`/`height` and `Layout` sizes, which are bound to its
+  implicit size so the window grows upward as rows arrive while it's open.
 - **Yakuake terminal ID = Konsole session number − 1.** The shell PID lives on
   the Konsole session (`/Sessions/N`), and Yakuake creates one Konsole session
   per terminal. The offset is inferred from that, so `focus` confirms it across
