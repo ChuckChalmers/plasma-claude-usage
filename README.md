@@ -91,7 +91,7 @@ bus), run once: `systemctl --user import-environment DBUS_SESSION_BUS_ADDRESS`.
 
 ## Attention badge
 
-A dot to the left of the bars shows which Claude Code sessions are waiting on
+A dot to the right of the bars shows which Claude Code sessions are waiting on
 you, across every open session:
 
 - **Amber** — a session is blocked partway through a turn: a permission prompt,

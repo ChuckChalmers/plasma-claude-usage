@@ -8,18 +8,19 @@ Item {
 
     property string level: "none"   // "none" | "turn" | "blocked"
     property int count: 0
+    property real diameter: 18
 
     readonly property bool blocked: level === "blocked"
 
     property color blockedAmber: "#F59F00"
     property color doneGray: "#8A8F98"
 
-    implicitWidth: 18
-    implicitHeight: 18
+    implicitWidth: diameter
+    implicitHeight: diameter
 
     Rectangle {
         anchors.centerIn: parent
-        width: badge.count > 1 ? 18 : 14
+        width: badge.diameter
         height: width
         radius: width / 2
         visible: badge.level !== "none"
@@ -31,7 +32,7 @@ Item {
             visible: badge.count > 1
             text: badge.count
             color: badge.blocked ? "#1B1B1B" : "#FFFFFF"
-            font.pixelSize: 11
+            font.pixelSize: Math.round(badge.diameter * 0.5)
             font.bold: true
         }
     }

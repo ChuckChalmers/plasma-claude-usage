@@ -103,21 +103,23 @@ Item {
         // Space stays reserved when hidden so the bars never shift.
         AttentionBadge {
             id: attentionBadge
-            anchors.left: parent.left
-            anchors.leftMargin: 4
+            anchors.right: parent.right
+            anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             level: root.badge.level
             count: root.badge.count
+            diameter: Math.round(bars.height * 0.7)
         }
 
         ColumnLayout {
+            id: bars
             // Anchor sides for width/padding, but center vertically so the two
             // rows get balanced top/bottom breathing room in the panel.
-            anchors.left: attentionBadge.right
-            anchors.right: parent.right
+            anchors.left: parent.left
+            anchors.right: attentionBadge.left
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 4
-            anchors.rightMargin: 12
+            anchors.leftMargin: 6
+            anchors.rightMargin: 6
             spacing: 5
 
             UsageRow { Layout.fillWidth: true; label: "5h"; pct: root.fivePct }
