@@ -89,13 +89,41 @@ journalctl --user -u claude-usage-poll -n 20       # why did a run fail?
 If notifications don't appear (a systemd user service sometimes lacks the session
 bus), run once: `systemctl --user import-environment DBUS_SESSION_BUS_ADDRESS`.
 
+## Attention badge
+
+A dot to the left of the bars shows which Claude Code sessions are waiting on
+you, across every open session:
+
+- **Amber** — a session is blocked partway through a turn: a permission prompt,
+  a question (`AskUserQuestion`), or a plan to approve (`ExitPlanMode`).
+- **Blue** — sessions have finished their turn and the next move is yours.
+- A number appears once more than one session is waiting; amber wins whenever
+  any session is blocked. Hovering the widget lists the waiting projects
+  (each session's working-directory name).
+
+`attention/attention.sh` keeps the state in `~/.claude/attention.json`, a map of
+session ID to state, project, and the session's `claude` process. It runs as a
+hook on several events:
+
+| Event | Effect |
+|---|---|
+| `Stop` | marks the session "your turn" |
+| `Notification` | marks it blocked; the 60-second idle reminder is skipped, since it repeats "your turn" |
+| `PreToolUse` on `AskUserQuestion\|ExitPlanMode` | marks it blocked |
+| `PostToolUse`, `UserPromptSubmit`, `SessionEnd` | clears it (a subagent's tool calls leave it alone) |
+
+A session can end without any hook running (a closed terminal tab, a crash), so
+the widget's `attention.sh list` call drops every entry whose process has
+exited. Each entry stores the process start time with its PID, which keeps a
+recycled PID from counting as the old session.
+
 ## Install
 
 ```
 ./install.sh
 ```
 
-This symlinks the writer and the poller into `~/.claude/`, installs and enables
+This symlinks the writer, the poller, and the attention tracker into `~/.claude/`, installs and enables
 the poller's systemd user timer, and installs the Plasmoid as a copied package
 (this KDE build rejects symlinked packages). Then:
 
@@ -108,7 +136,15 @@ the poller's systemd user timer, and installs the Plasmoid as a copied package
    }
    ```
 
-2. Add the widget to the panel: right-click the panel → **Add Widgets…** →
+2. Register the attention tracker as a hook in `~/.claude/settings.json`, using
+   this handler for each event in the table above (with the `matcher` shown for
+   `PreToolUse`; `"*"` for `PostToolUse`):
+
+   ```json
+   { "type": "command", "command": "bash \"$HOME/.claude/attention.sh\" hook" }
+   ```
+
+3. Add the widget to the panel: right-click the panel → **Add Widgets…** →
    search **Claude Usage** → drag it next to the clock.
 
 After editing the Plasmoid, re-run `./install.sh` and reload with
@@ -122,6 +158,10 @@ After editing the Plasmoid, re-run `./install.sh` and reload with
   ISO→epoch reset times, transient-vs-breakage classification, debounced alert,
   defensive no-clobber).
 - `node plasmoid/test_staleness.js` — the staleness helper.
+- `bash attention/test_attention.sh` — the attention tracker (marking and
+  clearing per event, idle-reminder skip, subagent skip, dead-process and
+  recycled-PID pruning).
+- `node plasmoid/test_attention.js` — the badge helper.
 
 ## Target environment
 

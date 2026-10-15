@@ -19,11 +19,15 @@ full architecture.
 - `poller/usage-poll.sh` — the OAuth usage poller (second cache writer, surface-independent)
 - `poller/claude-usage-poll.{service,timer}` — systemd user units that run the poller every ~3 min
 - `poller/test_poll.sh` — poller tests (plain bash, hermetic via env seams)
+- `attention/attention.sh` — the attention tracker: a hook that records sessions waiting on you, plus the `list` command the widget polls
+- `attention/test_attention.sh` — tracker tests (plain bash, hermetic via `ATTENTION_FILE` / `ATTENTION_PID`)
 - `plasmoid/` — the Plasma widget package (`metadata.json` + `contents/ui/`)
 - `plasmoid/contents/ui/staleness.js` — pure helper shared with its node test
 - `plasmoid/test_staleness.js` — staleness helper tests (node)
+- `plasmoid/contents/ui/attention.js` + `AttentionBadge.qml` — badge helper (pure, node-tested) and the badge itself
+- `plasmoid/test_attention.js` — badge helper tests (node)
 - `docs/` — design doc, captured payload + endpoint fixtures, screenshot
-- `install.sh` — installs all pieces (writer symlink, poller symlink + timer, plasmoid copy) on this machine
+- `install.sh` — installs all pieces (writer, poller, and tracker symlinks; poller timer; plasmoid copy) on this machine
 
 ## Commands
 
@@ -31,6 +35,8 @@ full architecture.
 bash statusline/test_writer.sh      # writer tests
 bash poller/test_poll.sh            # poller tests
 node plasmoid/test_staleness.js     # staleness helper tests
+bash attention/test_attention.sh    # attention tracker tests
+node plasmoid/test_attention.js     # badge helper tests
 ./install.sh                        # (re)install writer + poller/timer + plasmoid
 plasmashell --replace &             # reload the panel after a plasmoid change
 systemctl --user status claude-usage-poll.timer   # is the poller scheduled?
@@ -39,15 +45,15 @@ journalctl --user -u claude-usage-poll -n 20       # why did a poll fail?
 
 ## Conventions & constraints
 
-- **TDD.** Both suites stay green; write a failing test before changing writer
-  or staleness behaviour.
+- **TDD.** All suites stay green; write a failing test before changing writer,
+  poller, tracker, staleness, or badge behaviour.
 - **Target Plasma 5.27 / Qt5** — `org.kde.plasma.*` imports and `metadata.json`
   packaging. (A `metadata.desktop` package loads by ID but won't drag onto a
   panel on this build.)
 - **The plasmoid is copy-installed, not symlinked.** This KDE build's KPackage
   rejects symlinks that escape the package directory. After editing anything
   under `plasmoid/`, re-run `./install.sh` and reload with `plasmashell --replace &`.
-  The writer and poller scripts (`statusline/`, `poller/`) are symlinked into
+  The writer, poller, and tracker scripts (`statusline/`, `poller/`, `attention/`) are symlinked into
   `~/.claude/`, so script edits take effect immediately. **The systemd units are
   copied** to `~/.config/systemd/user/`, so after editing a `.service`/`.timer`
   re-run `./install.sh` (it reloads and restarts the timer).

@@ -23,6 +23,11 @@ echo "Writer symlinked: ~/.claude/statusline-command.sh"
 ln -sf "$REPO_DIR/poller/usage-poll.sh" "$HOME/.claude/usage-poll.sh"
 echo "Poller symlinked: ~/.claude/usage-poll.sh"
 
+# 1c. Attention tracker — symlinked like the writer; registered as a hook for
+#     several events in ~/.claude/settings.json (see README).
+ln -sf "$REPO_DIR/attention/attention.sh" "$HOME/.claude/attention.sh"
+echo "Attention tracker symlinked: ~/.claude/attention.sh"
+
 if command -v systemctl >/dev/null 2>&1; then
   SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
   mkdir -p "$SYSTEMD_USER_DIR"

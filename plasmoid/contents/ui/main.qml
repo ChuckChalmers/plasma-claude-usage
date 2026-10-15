@@ -1,8 +1,10 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import org.kde.plasma.plasmoid 2.0
+import org.kde.plasma.core 2.0 as PlasmaCore
 import Qt.labs.platform 1.1 as Platform
 import "staleness.js" as Staleness
+import "attention.js" as Attention
 
 Item {
     id: root
@@ -25,6 +27,30 @@ Item {
 
     readonly property int fivePct: fiveHour ? Staleness.displayedPercent(fiveHour, nowSec) : 0
     readonly property int sevenPct: sevenDay ? Staleness.displayedPercent(sevenDay, nowSec) : 0
+
+    // Sessions waiting on you, from the attention tracker (see attention/).
+    readonly property string attentionCmd: "bash \"$HOME/.claude/attention.sh\" list"
+    property var badge: Attention.badgeFor(null)
+
+    Plasmoid.toolTipMainText: badge.count ? "Claude Code: waiting on you" : "Claude Code"
+    Plasmoid.toolTipSubText: badge.tooltip || "No sessions waiting"
+
+    // The executable engine runs a command once per connect, so the timer
+    // reconnects it each tick and onNewData disconnects it again.
+    PlasmaCore.DataSource {
+        id: attentionSource
+        engine: "executable"
+        onNewData: {
+            disconnectSource(sourceName);
+            if (data["exit code"] !== 0)
+                return;
+            try {
+                root.badge = Attention.badgeFor(JSON.parse(data.stdout));
+            } catch (e) {
+                // Unparseable output: keep the last badge.
+            }
+        }
+    }
 
     function refresh() {
         nowSec = Date.now() / 1000;
@@ -53,24 +79,37 @@ Item {
         running: true
         repeat: true
         triggeredOnStart: true
-        onTriggered: root.refresh()
+        onTriggered: {
+            root.refresh();
+            attentionSource.connectSource(root.attentionCmd);
+        }
     }
 
     Plasmoid.fullRepresentation: Item {
         // Force a real width in the panel; otherwise the layout shrinks to the
         // text and the fill-width bars collapse to zero and disappear.
-        implicitWidth: 168
+        implicitWidth: 188
         implicitHeight: 40
-        Layout.minimumWidth: 168
-        Layout.preferredWidth: 168
+        Layout.minimumWidth: 188
+        Layout.preferredWidth: 188
+
+        // Space stays reserved when hidden so the bars never shift.
+        AttentionBadge {
+            id: attentionBadge
+            anchors.left: parent.left
+            anchors.leftMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            level: root.badge.level
+            count: root.badge.count
+        }
 
         ColumnLayout {
             // Anchor sides for width/padding, but center vertically so the two
             // rows get balanced top/bottom breathing room in the panel.
-            anchors.left: parent.left
+            anchors.left: attentionBadge.right
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 6
+            anchors.leftMargin: 4
             anchors.rightMargin: 12
             spacing: 5
 
