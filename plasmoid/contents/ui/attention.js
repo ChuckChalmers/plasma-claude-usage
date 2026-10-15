@@ -1,7 +1,8 @@
 // Attention badge helper — shared by the QML widget and its node test.
 //
-// Turns the tracker's {blocked: [projects], turn: [projects]} summary into what
-// the badge shows. Blocked (a permission prompt or a question) outranks "your
+// Turns the tracker's {blocked: [...], turn: [...]} summary (lists of
+// {session, project}, longest waiting first) into what the badge and its
+// tooltip show. Blocked (a permission prompt or a question) outranks "your
 // turn" (a session finished), so one blocked session sets the colour.
 //
 // Pure and portable: no QML/Plasma APIs, no side effects.
@@ -10,9 +11,9 @@ function badgeFor(summary) {
   var blocked = (summary && summary.blocked) || [];
   var turn = (summary && summary.turn) || [];
 
-  var lines = [];
-  if (blocked.length) lines.push("Blocked: " + blocked.join(", "));
-  if (turn.length) lines.push("Done: " + turn.join(", "));
+  var groups = [];
+  if (blocked.length) groups.push({ label: "Blocked", sessions: blocked });
+  if (turn.length) groups.push({ label: "Done", sessions: turn });
 
   var count = blocked.length + turn.length;
   var title = count === 0 ? "No sessions waiting on you"
@@ -23,7 +24,7 @@ function badgeFor(summary) {
     level: blocked.length ? "blocked" : turn.length ? "turn" : "none",
     count: count,
     title: title,
-    tooltip: lines.join("\n"),
+    groups: groups,
   };
 }
 

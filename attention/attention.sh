@@ -5,15 +5,22 @@
 #                       (AskUserQuestion|ExitPlanMode), PostToolUse,
 #                       UserPromptSubmit and SessionEnd; reads the hook payload
 #                       on stdin and marks or clears the session.
-#   attention.sh list   prints {"blocked":[projects],"turn":[projects]} for the
-#                       widget, first dropping sessions whose process is gone.
+#   attention.sh list   prints {"blocked":[...],"turn":[...]} for the widget, each
+#                       a list of {session, project} ordered longest waiting
+#                       first, after dropping sessions whose process is gone.
+#   attention.sh focus [session]
+#                       opens Yakuake and switches to that session's tab, or by
+#                       default to the one that most needs you: blocked first,
+#                       then longest waiting.
 #
-# State is one JSON map, session_id -> {state, project, pid, start}, where
-# start is the process start time so a recycled PID never counts as alive.
+# State is one JSON map, session_id -> {state, project, pid, start, since},
+# where start is the process start time so a recycled PID never counts as
+# alive, and since is when the session entered its current state.
 set -euo pipefail
 
 FILE="${ATTENTION_FILE:-$HOME/.claude/attention.json}"
 LOCK="$FILE.lock"
+QDBUS="${ATTENTION_QDBUS:-qdbus}"
 
 # Field <n> of /proc/<pid>/stat; the command name in field 2 may contain spaces.
 stat_field() {
@@ -58,7 +65,9 @@ mark() {
   start="$(start_time "$pid" || echo 0)"
   update --arg s "$session" --arg st "$state" --arg p "${cwd##*/}" \
     --argjson pid "$pid" --arg start "$start" \
-    '.[$s] = {state: $st, project: $p, pid: $pid, start: $start}'
+    --argjson now "${ATTENTION_NOW:-$(date +%s)}" \
+    '.[$s] = {state: $st, project: $p, pid: $pid, start: $start,
+              since: (if .[$s].state == $st then .[$s].since // $now else $now end)}'
 }
 
 clear_session() {
@@ -114,13 +123,56 @@ list() {
     update --args 'delpaths($ARGS.positional | map([.]))' "${dead[@]}"
   fi
 
-  jq -c '[.[]] as $all
-    | {blocked: [$all[] | select(.state == "blocked") | .project] | sort,
-       turn:    [$all[] | select(.state == "turn") | .project] | sort}' "$FILE"
+  jq -c '[to_entries[] | {session: .key, project: .value.project,
+                           state: .value.state, since: (.value.since // 0)}]
+    | sort_by(.since) as $all
+    | def group(st): [$all[] | select(.state == st) | {session, project}];
+      {blocked: group("blocked"), turn: group("turn")}' "$FILE"
+}
+
+yakuake() { "$QDBUS" org.kde.yakuake "$@"; }
+
+# Yakuake's tab for the terminal whose shell is <pid>, or nothing.
+#
+# Yakuake's D-Bus API names terminals by its own IDs, and only the Konsole
+# sessions (/Sessions/N) expose their shell PID. Yakuake creates one Konsole
+# session per terminal, so terminal ID = N - 1; that is checked across every
+# terminal before trusting it, since no API states it.
+tab_for_shell() {
+  local shell="$1" n konsole=() match=""
+  for n in $(yakuake | sed -n 's|^/Sessions/||p'); do
+    konsole+=("$((n - 1))")
+    [ "$(yakuake "/Sessions/$n" processId)" = "$shell" ] && match="$((n - 1))"
+  done
+  [ -n "$match" ] || return 0
+  [ "$(printf '%s\n' "${konsole[@]}" | sort -n)" = \
+    "$(yakuake /yakuake/sessions terminalIdList | tr ',' '\n' | sort -n)" ] || return 0
+  local tab
+  tab="$(yakuake /yakuake/sessions sessionIdForTerminalId "$match")"
+  [ "$tab" -ge 0 ] && echo "$tab"
+}
+
+focus() {
+  local session="${1:-}" pid="" tab=""
+  list >/dev/null
+  if [ -s "$FILE" ]; then
+    pid="$(jq -r --arg s "$session" '
+      if $s != "" then .[$s].pid
+      else [.[]] | sort_by([.state != "blocked", .since // 0]) | first | .pid
+      end // empty' "$FILE")"
+  fi
+  [ -n "$pid" ] && tab="$(tab_for_shell "$(stat_field "$pid" 4)")"
+
+  [ "$(yakuake /yakuake/MainWindow_1 org.freedesktop.DBus.Properties.Get \
+        org.qtproject.Qt.QWidget visible)" = true ] \
+    || yakuake /yakuake/window toggleWindowState >/dev/null
+  [ -n "$tab" ] && yakuake /yakuake/sessions raiseSession "$tab" >/dev/null
+  return 0
 }
 
 case "${1:-}" in
   hook) hook ;;
   list) list ;;
-  *) echo "usage: attention.sh hook|list" >&2; exit 2 ;;
+  focus) focus "${2:-}" ;;
+  *) echo "usage: attention.sh hook|list|focus" >&2; exit 2 ;;
 esac

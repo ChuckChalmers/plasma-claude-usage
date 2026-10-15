@@ -2,7 +2,7 @@
 
 A KDE Plasma panel widget (Plasmoid) that shows Claude Code rate-limit usage —
 the 5-hour and 7-day windows — as two always-visible progress bars next to the
-system clock.
+system clock, plus a dot showing which Claude Code sessions are waiting on you.
 
 ![Claude Usage widget](docs/widget.png)
 
@@ -28,8 +28,8 @@ independent writers and read by the widget:
 3. **Reader** (`plasmoid/`) — the Plasmoid polls that cache file every 2s and
    renders two styled progress bars, independent of whether a session is active.
 
-Both writers report the same account-level quota and write atomically, so they
-never conflict — whichever ran most recently is the freshest, and they agree.
+Both writers report the same account-level quota and write atomically, so
+whichever ran most recently is the freshest, and they agree.
 
 ### Behavior
 
@@ -78,7 +78,7 @@ treats transient problems (offline, timeout, an expired token, a `5xx`) silently
 it just leaves the last-good numbers in place. But if it sees a real break — a
 response whose shape it no longer recognises, or a persistent error like `404` —
 it raises a **desktop notification** (once per outage, re-armed on recovery) so
-you know the bars may be drifting rather than trusting a silently-frozen number.
+you know the bars may be drifting.
 Details are always in the log:
 
 ```
@@ -98,12 +98,37 @@ you, across every open session:
   a question (`AskUserQuestion`), or a plan to approve (`ExitPlanMode`).
 - **Faded gray** — every waiting session has finished its turn ("Done").
 - A number appears once more than one session is waiting; amber wins whenever
-  any session is blocked. Hovering the widget lists the waiting projects
-  (each session's working-directory name).
+  any session is blocked.
+
+Hovering the widget opens a list of the waiting sessions, one per row under
+**Blocked** and **Done**, each labelled with its working-directory name. Blocked
+comes first, and within each group the session that has waited longest is on
+top. Waiting time starts when a session enters its current state, so a session
+that finishes several turns in a row keeps its place.
+
+### Jumping to a session
+
+Clicking a row in the list switches [Yakuake](https://apps.kde.org/yakuake/) to
+that session's tab; clicking the widget itself picks the top row. Yakuake opens
+first if it's hidden, on the screen its own **Screen** setting names (its menu
+→ Screen). A screen number beyond the connected screens falls back to the
+active screen, so one setting covers both a docked monitor and the laptop
+alone. Yakuake switches tabs only, so a session in a split pane lands on its
+tab with focus left where it was.
+
+The jump goes through Yakuake's D-Bus API (`qdbus`). Yakuake names terminals by
+its own IDs, while only the Konsole sessions behind them (`/Sessions/N`) expose
+a shell PID. Each Yakuake terminal is backed by one Konsole session numbered one
+higher, so the tracker finds the Konsole session whose shell is the waiting
+`claude` process's parent and uses terminal `N - 1`. It confirms that numbering
+across every open terminal first; when the two sets of IDs disagree, the click
+opens Yakuake and leaves the tab as it is.
+
+### How sessions are tracked
 
 `attention/attention.sh` keeps the state in `~/.claude/attention.json`, a map of
-session ID to state, project, and the session's `claude` process. It runs as a
-hook on several events:
+session ID to state, project, the session's `claude` process, and when it
+started waiting. It runs as a hook on several events:
 
 | Event | Effect |
 |---|---|
@@ -116,6 +141,12 @@ A session can end without any hook running (a closed terminal tab, a crash), so
 the widget's `attention.sh list` call drops every entry whose process has
 exited. Each entry stores the process start time with its PID, which keeps a
 recycled PID from counting as the old session.
+
+| Command | Used by |
+|---|---|
+| `attention.sh hook` | the hooks above; reads the hook payload on stdin |
+| `attention.sh list` | the widget, every 2s; prints the waiting sessions grouped and ordered as shown in the list |
+| `attention.sh focus [session]` | a click; opens Yakuake on that session's tab, or the top one |
 
 ## Install
 
@@ -148,7 +179,8 @@ the poller's systemd user timer, and installs the Plasmoid as a copied package
    search **Claude Usage** → drag it next to the clock.
 
 After editing the Plasmoid, re-run `./install.sh` and reload with
-`plasmashell --replace &` — the installed copy does not track the repo.
+`plasmashell --replace &` — the installed copy is a snapshot taken at install
+time.
 
 ## Tests
 
@@ -160,12 +192,16 @@ After editing the Plasmoid, re-run `./install.sh` and reload with
 - `node plasmoid/test_staleness.js` — the staleness helper.
 - `bash attention/test_attention.sh` — the attention tracker (marking and
   clearing per event, idle-reminder skip, subagent skip, dead-process and
-  recycled-PID pruning).
-- `node plasmoid/test_attention.js` — the badge helper.
+  recycled-PID pruning, waiting-time ordering, and the Yakuake jump against a
+  fake `qdbus`).
+- `node plasmoid/test_attention.js` — the badge helper (colour level, count,
+  title, grouped session list).
 
 ## Target environment
 
 - **KDE Plasma 5.27** (Qt5) — the Plasmoid uses the Plasma 5 widget API
   (`metadata.json` packaging, `org.kde.plasma.*` QML imports).
+- **Yakuake 23.08** with `qdbus` — for jumping to a session's tab; the rest of
+  the widget works without it.
 - **Claude Code ≥ 1.2.80** — the first version to expose `rate_limits` in the
   status line JSON (populated on `2.1.207`).

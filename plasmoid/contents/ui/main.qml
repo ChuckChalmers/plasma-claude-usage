@@ -50,6 +50,20 @@ Item {
         }
     }
 
+    // Runs the tracker's focus command on click; output isn't needed.
+    PlasmaCore.DataSource {
+        id: focusRunner
+        engine: "executable"
+        onNewData: disconnectSource(sourceName)
+    }
+
+    // Session IDs are UUIDs; anything else never reaches the shell.
+    function focusSession(session) {
+        if (session && !/^[A-Za-z0-9-]+$/.test(session))
+            return;
+        focusRunner.connectSource("bash \"$HOME/.claude/attention.sh\" focus " + (session || ""));
+    }
+
     function refresh() {
         nowSec = Date.now() / 1000;
 
@@ -93,11 +107,25 @@ Item {
 
         // Plasmoid.toolTip* only shows for a compact representation; this
         // widget is always full, so it needs its own hover area.
+        // Interactive, so its rows can be clicked to pick a session.
         PlasmaCore.ToolTipArea {
+            id: tooltip
             anchors.fill: parent
-            mainText: root.badge.title
-            subText: root.badge.tooltip
-            textFormat: Text.PlainText
+            interactive: true
+            mainItem: SessionList {
+                badge: root.badge
+                onPicked: {
+                    tooltip.hideToolTip();
+                    root.focusSession(session);
+                }
+            }
+
+            // Jumps to the Yakuake tab of the session that most needs you.
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: root.badge.count ? Qt.PointingHandCursor : Qt.ArrowCursor
+                onClicked: root.focusSession("")
+            }
         }
 
         // Space stays reserved when hidden so the bars never shift.
