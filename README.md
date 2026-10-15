@@ -96,7 +96,7 @@ you, across every open session:
 
 - **Amber** — a session is blocked partway through a turn: a permission prompt,
   a question (`AskUserQuestion`), or a plan to approve (`ExitPlanMode`).
-- **Blue** — sessions have finished their turn and the next move is yours.
+- **Faded gray** — every waiting session has finished its turn ("Done").
 - A number appears once more than one session is waiting; amber wins whenever
   any session is blocked. Hovering the widget lists the waiting projects
   (each session's working-directory name).

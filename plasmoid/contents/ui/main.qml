@@ -86,10 +86,10 @@ Item {
     Plasmoid.fullRepresentation: Item {
         // Force a real width in the panel; otherwise the layout shrinks to the
         // text and the fill-width bars collapse to zero and disappear.
-        implicitWidth: 188
+        implicitWidth: 190
         implicitHeight: 40
-        Layout.minimumWidth: 188
-        Layout.preferredWidth: 188
+        Layout.minimumWidth: 190
+        Layout.preferredWidth: 190
 
         // Plasmoid.toolTip* only shows for a compact representation; this
         // widget is always full, so it needs its own hover area.
